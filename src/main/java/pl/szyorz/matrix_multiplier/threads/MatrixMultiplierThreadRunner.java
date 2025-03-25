@@ -1,27 +1,59 @@
 package pl.szyorz.matrix_multiplier.threads;
 
+import pl.szyorz.matrix_multiplier.utils.MatrixFileIO;
+
+import java.io.IOException;
 import java.nio.file.Path;
 
 public class MatrixMultiplierThreadRunner {
     private Path srcA, srcB;
     private int N;
-    private int[][] A, B;
     private MatrixMultiplierThread[] threads;
-    public MatrixMultiplierThreadRunner(int[][] A, int[][] B, int N) {
-        this.N = N;
-        this.A = A;
-        this.B = B;
-        this.threads = new MatrixMultiplierThread[N];
+    private MatrixFileIO.Matrix A, B;
+    private String destinationPath;
+
+    public MatrixMultiplierThreadRunner(String A_path, String B_path, String destinationPath) throws IOException {
+        this.A = MatrixFileIO.readFromFile(A_path);
+        this.B = MatrixFileIO.readFromFile(B_path);
+        this.destinationPath = destinationPath;
+
+        if (A.N != B.N) {
+            throw new IllegalStateException("Both matrices must be the same size. A is " + A.N +" B is " + B.N);
+        }
+        this.N = A.N;
+        this.threads = new MatrixMultiplierThread[1];
     }
 
-    public void multiply() {
+    public MatrixMultiplierThreadRunner(String A_path, String B_path,  String destinationPath, int threadsNum) throws IOException {
+        this.A = MatrixFileIO.readFromFile(A_path);
+        this.B = MatrixFileIO.readFromFile(B_path);
+        this.destinationPath = destinationPath;
+
+        if (A.N != B.N) {
+            throw new IllegalStateException("Both matrices must be the same size. A is " + A.N +" B is " + B.N);
+        }
+        this.N = A.N;
+        this.threads = new MatrixMultiplierThread[threadsNum];
+    }
+
+    public void multiply() throws IOException {
+        System.out.println("Start!");
         int[][] C = new int[N][N];
-        for (int i = 0; i < N; i++) {
-            threads[i] = new MatrixMultiplierThread(A, B, C, i, N);
+
+        int threadCount = threads.length;
+        int rowsPerThread = N / threadCount;
+        int extraRows = N % threadCount;
+
+        int startRow = 0;
+        System.out.println("Computing.....");
+        for (int i = 0; i < threads.length; i++) {
+            int endRow = startRow + rowsPerThread + (i < extraRows ? 1 : 0);
+            threads[i] = new MatrixMultiplierThread(A.values, B.values, C, startRow, endRow, N);
             threads[i].start();
+            startRow = endRow;
         }
 
-        for (int i = 0; i < N; i++) {
+        for (int i = 0; i < threads.length; i++) {
             try {
                 threads[i].join();
             } catch (InterruptedException e) {
@@ -29,13 +61,8 @@ public class MatrixMultiplierThreadRunner {
             }
         }
 
-        // Print the resulting matrix
-        System.out.println("Result Matrix C:");
-        for (int i = 0; i < N; i++) {
-            for (int j = 0; j < N; j++) {
-                System.out.print(C[i][j] + " ");
-            }
-            System.out.println();
-        }
+        MatrixFileIO.writeToFile(new MatrixFileIO.Matrix(N, C), destinationPath);
+        System.out.println("Finished!");
+        System.out.println("Results were written to: " + destinationPath);
     }
 }
