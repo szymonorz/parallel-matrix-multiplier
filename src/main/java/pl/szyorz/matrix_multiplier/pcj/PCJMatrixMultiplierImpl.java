@@ -20,7 +20,7 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
     }
 
     private int[][] A, B;
-    private int rank, row, col, left, right, up, down;
+    private int rank, row, col;
 
     @Override
     public void main() {

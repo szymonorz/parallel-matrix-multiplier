@@ -38,6 +38,8 @@ public class MatrixMultiplierThreadRunner {
 
     public void multiply() throws IOException {
         System.out.println("Start!");
+        long start = System.currentTimeMillis();
+
         int[][] C = new int[N][N];
 
         int threadCount = threads.length;
@@ -62,7 +64,10 @@ public class MatrixMultiplierThreadRunner {
         }
 
         MatrixFileIO.writeToFile(new MatrixFileIO.Matrix(N, C), destinationPath);
-        System.out.println("Finished!");
+        long finished = System.currentTimeMillis();
+
+        long timeElapsed = finished - start;
+        System.out.println("Finished! Elapsed time (ms): " + timeElapsed);
         System.out.println("Results were written to: " + destinationPath);
     }
 }
