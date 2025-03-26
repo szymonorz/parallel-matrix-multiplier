@@ -1,6 +1,7 @@
 package pl.szyorz.matrix_multiplier;
 
 import org.apache.commons.cli.*;
+import org.pcj.ExecutionBuilder;
 import org.pcj.PCJ;
 import pl.szyorz.matrix_multiplier.pcj.PCJMatrixMultiplierImpl;
 import pl.szyorz.matrix_multiplier.threads.MatrixMultiplierThreadRunner;
@@ -35,6 +36,8 @@ public class MatrixMultiplierRunner {
         options.addOption(sourceOption);
         options.addOption(destinationOption);
 
+
+        options.addOption("f", "nodes-file", true, "File consisting a list of nodes (Only parallel-pcj mode)");
         options.addOption("p", "parallel-pcj", false, "Use PCJ to compute");
 
         options.addOption("t", "threads", false, "Use JVM threads");
@@ -50,18 +53,31 @@ public class MatrixMultiplierRunner {
             if (cmd.hasOption("p")) {
                 System.out.println("Parallel PCJ mode enabled");
                 int N = MatrixFileIO.readFromFile(sourceFiles[0]).N;
-                String[] nodes = new String[N*N];
 
-                for (int i = 0; i < N*N; i++) {
-                    nodes[i] = "localhost";
-                }
-
-                PCJ.executionBuilder(PCJMatrixMultiplierImpl.class)
-                        .addNodes(nodes)
+                ExecutionBuilder pcjBuilder = PCJ.executionBuilder(PCJMatrixMultiplierImpl.class)
                         .addProperty("source1", sourceFiles[0])
                         .addProperty("source2", sourceFiles[1])
-                        .addProperty("destination", destination)
-                        .deploy();
+                        .addProperty("destination", destination);
+
+                if (cmd.hasOption("f")) {
+                    File nodesFile = new File(cmd.getOptionValue("f"));
+
+                    pcjBuilder = pcjBuilder.addNodes(nodesFile);
+
+                }else {
+                    String[] nodes = new String[N * N];
+
+                    for (int i = 0; i < N * N; i++) {
+                        int port = 8000 + (i % 20);
+                        nodes[i] = "localhost:" + port;
+                    }
+
+                    pcjBuilder = pcjBuilder.addNodes(nodes);
+                }
+
+                pcjBuilder.deploy();
+
+
             }
 
             if (cmd.hasOption("t")) {

@@ -16,7 +16,7 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
 
     @Storage
     enum Shared {
-        A, B
+        A, B, N
     }
 
     private int[][] A, B;
@@ -25,27 +25,24 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
     @Override
     public void main() {
         rank = PCJ.myId();
-        int size = PCJ.threadCount();
         String destination = PCJ.getProperty("destination");
         MatrixFileIO.Matrix _A;
         MatrixFileIO.Matrix _B;
-        try {
-            _A = MatrixFileIO.readFromFile(PCJ.getProperty("source1"));
-            _B = MatrixFileIO.readFromFile(PCJ.getProperty("source2"));
-
-            A = _A.values;
-            B = _B.values;
-
-            N = _A.N;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        row = rank / N;
-        col = rank % N;
-
         if (rank == 0) {
-            // Initial left shift
+            System.out.println("Loading data from files.....");
+            try {
+                _A = MatrixFileIO.readFromFile(PCJ.getProperty("source1"));
+                _B = MatrixFileIO.readFromFile(PCJ.getProperty("source2"));
+
+                A = _A.values;
+                B = _B.values;
+
+                N = _A.N;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            System.out.println("Initial left shift....");
             for (int i = 0; i < N; i++) {
                 for (int shift = 0; shift < i; shift++) {
                     int temp = A[i][0];
@@ -56,7 +53,7 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
                 }
             }
 
-            // Initial up shift
+            System.out.println("Initial up shift.....");
             for (int j = 0; j < N; j++) {
                 for (int shift = 0; shift < j; shift++) {
                     int temp = B[0][j];
@@ -67,11 +64,18 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
                 }
             }
 
+            System.out.println("Broadcasting data to other processes....");
             PCJ.broadcast(A, Shared.A);
             PCJ.broadcast(B, Shared.B);
+            PCJ.broadcast(N, Shared.N);
         }
+
         PCJ.waitFor(Shared.A);
         PCJ.waitFor(Shared.B);
+        PCJ.waitFor(Shared.N);
+
+        row = rank / N;
+        col = rank % N;
 
         PCJ.barrier();
 
@@ -113,6 +117,9 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
             MatrixFileIO.writePart(C, destination, row, col);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+        if (rank == 0) {
+            System.out.println("Finished");
         }
     }
 }
