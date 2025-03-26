@@ -9,27 +9,24 @@ import pl.szyorz.matrix_multiplier.utils.MatrixFileIO;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 
 public class MatrixMultiplierRunner {
-    public static void main(String ...args) throws IOException, URISyntaxException {
+    public static void main(String ...args) throws IOException {
         Options options = new Options();
 
-//        OptionGroup ioGroup = new OptionGroup();
         Option sourceOption = Option.builder("s")
                 .longOpt("source")
                 .desc("Provide two source file paths")
                 .hasArgs()
-                .numberOfArgs(2)// Allows exactly 2 arguments
-                .valueSeparator(' ') // Optional: Space-separated arguments
+                .numberOfArgs(2)
+                .valueSeparator(' ')
                 .required()
                 .build();
 
         Option destinationOption = Option.builder("d")
                 .longOpt("destination")
                 .desc("Specify destination path")
-                .hasArg() // Takes a single argument
+                .hasArg()
                 .numberOfArgs(1)
                 .required()
                 .build();
@@ -76,8 +73,6 @@ public class MatrixMultiplierRunner {
                 }
 
                 pcjBuilder.deploy();
-
-
             }
 
             if (cmd.hasOption("t")) {
