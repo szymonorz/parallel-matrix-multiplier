@@ -9,6 +9,7 @@
 \usepackage{blindtext}
 \usepackage{titlesec}
 \usepackage{listings}
+\usepackage{graphicx}
 
 \title{Mnożenie macierzy z wykorzystaniem biblioteki PCJ oraz wątków JVM}
 \author{Szymon Orzechowski}
@@ -129,7 +130,39 @@
 
     W tym trybie mnożenie macierzy następuje zgodnie ze wzorem $wiersz x kolumna$. W ramach podzielenia na wątku wyznaczamy
     dla każdego wątku \verb|startRow| oraz \verb|endRow|, którego przeliczeniem ma się zajmować.
-    
-    
 
+    Podczas testowania wydajności wygenerowano macierz 2500x2500 (N=2500) i wykonano program z inkrementującą się liczbą
+    wątków w każdej iteracji wykonania programu.
+
+    \begin{table}[h]
+        \centering
+        \begin{tabular}{|c|c|}
+            \hline
+            \textbf{Ilość wątków} & \textbf{Czas wykonania (ms)} \\
+            \hline
+            1  & 47716 \\
+            2  & 21620 \\
+            3  & 14376 \\
+            4  & 10943 \\
+            5  & 8386  \\
+            6  & 7114  \\
+            7  & 6181  \\
+            8  & 5306  \\
+            9  & 7534  \\
+            10 & 6745  \\
+            \hline
+        \end{tabular}
+        \caption{Execution Time vs Number of Threads}
+        \label{tab:execution_time}
+    \end{table}
+
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\textwidth]{threads-plot.png}
+        \caption{Wykres czasu wykonania programu w zależności od ilości wątków}
+        \label{fig:bar_chart}
+    \end{figure}
+
+    Można zauważyć, że wraz z wzrostem ilości wątków czas wykonania maleje lecz już po dojściu do 6 wątków różnice w czasie
+    stają się znikome i w niektórych przypadkach czas jest dłuższy niż na mniejszej ilości wątków.
 \end{document}
