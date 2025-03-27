@@ -1,0 +1,135 @@
+%! Author = bvr
+%! Date = 2025-03-26
+
+% Preamble
+\documentclass[11pt]{article}
+
+% Packages
+\usepackage{amsmath}
+\usepackage{blindtext}
+\usepackage{titlesec}
+\usepackage{listings}
+
+\title{Mnożenie macierzy z wykorzystaniem biblioteki PCJ oraz wątków JVM}
+\author{Szymon Orzechowski}
+\date{}
+\lstset{breaklines=true}
+% Document
+\begin{document}
+
+    \maketitle
+
+    \clearpage
+
+    \tableofcontents
+
+    \clearpage
+
+    \section{Wstęp}
+
+    Niniejsza praca opisuje rozwiązanie problemu mnożenia macierzy kwadratowych o rozmiarach NxN z wykorzystaniem metod i algorytmów równoległych.
+    Projekt został napisany w jezyku Java w wersji 11 z użyciem biblioteki PCJ. W ramach generowania przykładowych danych został przygotowany skrypt
+    w języku Python. Program z góry zakłada, że dane dostarczone są poprawne.
+    Cały kod źródłowy dostępny jest pod adresem https://github.com/szymonorz/parallel-matrix-multiplier.
+    Wideoprezentacja z działania programu i przeglądu kodu znajduje się pod adresem https://www.youtube.com/watch?v=sLUT1OtxHwc.
+    
+    \section{Specyfikacja oraz instrukcja}
+
+    \subsection{Specyfikacja}
+    Specyfikacja środowiska w jakim program był tworzony i testowany wygląda następująco:
+
+    \begin{description}
+        \item[System operacyjny] Void Linux (kernel 6.9.12\_1)
+        \item[Java] OpenJDK 11
+        \item[Python] 3.13.1
+        \item[CPU] AMD Ryzen 9 7940HS
+    \end{description}
+
+    \subsection{Instrukcja}
+    \subsubsection{Przygotowanie danych}
+
+    Został przygotowany skrypt \verb|scripts/helper.py|. Aby wygenerować macierz o rozmiarze \verb|N| pod ścieżką \verb|path| należy wykonać polecenie
+    \begin{lstlisting}
+        python3 script/helper.py --generate path --size N
+    \end{lstlisting}
+
+    Rezultatem tego jest plik o następującym formacie
+    \begin{lstlisting}
+        N
+        a[0][0] a[0][1] ... a[0][N]
+        ...
+        ...
+        a[N][0] a[N][1] ... a[N][N]
+    \end{lstlisting}
+    gdzie
+    \begin{description}
+        \item Pierwsza linijka zawiera informację o ilości kolumn i wierszy macierzy
+        \item Następne \verb|N| wierszy zawiera po \verb|N| liczb całkowitych z przedziału od 0 do 9
+    \end{description}
+
+
+    \subsubsection{Kompilacja}
+    W projekcie został załączony Maven Wrapper oraz dostarczony skrypt \verb|mvnw|. Kompilację należy wykonać poprzez polecenie \verb|./mvnw clean package|.
+    Został zastosowany Maven Shade Plugin, którego zadaniem jest zapakowanie wszystkich zależności (takich jak np.: biblioteka PCJ) do pliku JAR
+    wraz z programem.
+
+    \subsubsection{Uruchomienie - Tryb PCJ}
+    Tryb PCJ jest uruchamiany poprzez wykorzystanie flagi \verb|-p|. Przemnożenie dwóch macierzy pod ścieżkami \verb|matrix1| i \verb|matrix2| oraz zapisanie ich
+    w \verb|result-matrix| należy wykonać poniższym poleceniem.
+
+    \begin{lstlisting}
+        java -jar target/parallel-....jar --source matrix1 matrix2 --destination result-matrix -p
+    \end{lstlisting}
+
+    Wykonanie programu zaskutkuje tym, że zostanie utworzonych \verb|NxN| plik o nazwie, która jest zgodna z formatem \verb|result-matrix.part-{row}-{col}|.
+    Owe pliki przechowują wartość komórki macierzy wynikowej \verb|C| w wierszu \verb|row| i kolumnie \verb|col|.
+
+    Scalenie takich komórek należy wykonać poprzez skrypt pomocniczy.
+
+    \begin{lstlisting}
+        python3 scripts/helper.py --concat result-matrix
+    \end{lstlisting}
+
+    \subsubsection{Uruchomienie - Tryb z wątkami JVM}
+
+    Tryb z użyciem wątków JVM uruchamiamy poprzez flagę \verb|-t|. Tak jak w poprzednim przypadku należy dostarczyć macierze źródłowe i ścieżkę docelową.
+    Dodatkowo istnieje opcja ustalenia liczby wątków poprzez flagę \verb|N|. Domyslnie jeżeli nie podamy wartości to program wykona się na jednym wątku.
+    \begin{lstlisting}
+        java -jar parallel-....jar --source matrix1 matrix2 --destination result-matrix -t -N threadsCount
+    \end{lstlisting}
+
+    Po zakończeniu nie ma potrzeby wykonywania operacji scalenia.
+    
+    \section{Algorytm Cannona - PCJ}
+
+    Algorytm Cannona dzieli się na następujące kroki:
+
+    \begin{enumerate}
+        \item Przesuń i-ty wiersz macierzy A o i pozycji w lewo.
+        \item Przesuń j-tą kolumnę macierzy B o j pozycji do góry.
+        \item Na każdym procesie $P_i,j$ oblicz $C_i,j$.
+        \item Przesuń każdy wiersz macierzy A o 1 w lewo.
+        \item Przesuń każdą kolumnę macierzy B o 1 do góry.
+        \item Wykonuj krok od 3 do 5 $N$ razy.
+    \end{enumerate}
+
+    W przypadku algorytmu Cannona każda komórka $C_i,j$ jest obliczana przez proces $P_i,j$ zgodnie ze wzorem.
+
+    \[C_i,j = C_i,j + (A_i,j * B_i,j)\]
+
+    W przypadku korzystania z biblioteki PCJ wszystkie przesunięcia wykonują się na procesie o \verb|rano = 0| i przetransformowane
+    dane są następnie rozprzestrzenianie do innych procesów z użyciem \verb|PCJ.broadcast|. Jest to możliwe, ze względu, iż
+    macierze \verb|A| i \verb|B| oraz ich ilość wierszy i kolumn \verb|N| są zdefiniowane jako \verb|Shared|.
+
+    Ze względu na ograniczenia sprzętowe nie byłem w stanie odpowiednio i wiarygodnie przetestować wydajności implementacji.
+    W przypadku macierzy 10x10, 20x20 oraz 50x50 nie było widocznych różnić w czasie wykonywania. Kazda z tych prób wykonywała
+    się w czasie 1 sekundy.
+
+    \section{Obliczenie z definicji - wątki JVM}
+
+    W tym trybie mnożenie macierzy następuje zgodnie ze wzorem $wiersz x kolumna$. W ramach podzielenia na wątku wyznaczamy
+    dla każdego wątku \verb|startRow| oraz \verb|endRow|, którego przeliczeniem ma się zajmować.
+    
+    
+
+\end{document}
