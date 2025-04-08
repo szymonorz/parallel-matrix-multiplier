@@ -16,32 +16,48 @@ def write_matrix_to_file(N, matrix, file_path):
     except Exception as e:
         print(f"Error writing to file: {e}")
 
+def read_submatrix_from_file(path):
+    with open(path, 'r') as f:
+        lines = f.readlines()
+        size = int(lines[0].strip())
+        matrix = [list(map(int, line.strip().split())) for line in lines[1:]]
+    return size, matrix
+
 def concat_matrix_parts(destination):
     dir = os.path.dirname(destination)
     basename = os.path.basename(destination)
-    files = [dir + "/" + f for f in os.listdir(dir) if f.startswith(basename + '.part-')]
+    files = [os.path.join(dir, f) for f in os.listdir(dir) if f.startswith(basename + '.part-')]
 
     if not files:
         print("No parts found for the given destination.")
         return None
 
     parts = {}
+    max_i = max_j = -1
+    block_size = None
+
     for file in files:
         try:
             _, indices = file.split('.part-')
             i, j = map(int, indices.split('-'))
-            with open(file, 'r') as f:
-                value = int(f.read().strip())
-            parts[(i, j)] = value
-        except ValueError:
-            print(f"Skipping invalid file: {file}")
+            block_size, submatrix = read_submatrix_from_file(file)
+            parts[(i, j)] = submatrix
+            max_i = max(max_i, i)
+            max_j = max(max_j, j)
+        except Exception as e:
+            print(f"Skipping invalid file {file}: {e}")
 
-    N = max(i for i, j in parts.keys()) + 1
+    if block_size is None:
+        print("No valid submatrices found.")
+        return None
 
+    N = (max_i + 1) * block_size
     matrix = [[0] * N for _ in range(N)]
 
-    for (i, j), value in parts.items():
-        matrix[i][j] = value
+    for (i, j), submatrix in parts.items():
+        for row in range(block_size):
+            for col in range(block_size):
+                matrix[i * block_size + row][j * block_size + col] = submatrix[row][col]
 
     write_matrix_to_file(N, matrix, destination)
 
