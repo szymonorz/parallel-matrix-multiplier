@@ -19,14 +19,14 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
 
     @Storage
     enum Shared {
-        A, B, N
+        A, B
     }
 
-    private int[][] A, B;
+    private int[][] A, B, A_local, B_local;
     private int rank, row, col;
     private int p, sqrtP, blockSize;
 
-    private final int debugRank = 11;
+    private final int debugRank = 2;
 
     @Override
     public void main() {
@@ -37,8 +37,8 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
         sqrtP = (int)Math.sqrt(p);
 
         try {
-            A = readSubMatrixFromFile(PCJ.getProperty("source1"));
-            B = readSubMatrixFromFile(PCJ.getProperty("source2"));
+            A_local = readSubMatrixFromFile(PCJ.getProperty("source1"));
+            B_local = readSubMatrixFromFile(PCJ.getProperty("source2"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -46,92 +46,73 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
 //        if (rank == debugRank) {
 //            System.out.println("Row: " + row +" col: " + col);
 //        }
-        for(int i=0; i<row; i++) {
-//            if (rank == debugRank) {
-//                System.out.println(i);
-//            }
-            shiftLeft();
-        }
-//        if(rank==4) {
-//            System.out.println("[" + rank + "]: Finished initial shiftLeft");
-//        }
+        for(int i=0; i<row; i++) shiftLeft();
         for(int j=0; j<col; j++) shiftUp();
-//        if (rank == 4) {
-//            System.out.println("[" + rank + "]: Finished initial shiftUp");
-//        }
-
-//        System.out.println("Rank " + rank + " ready");
-        if (rank == debugRank) {
-            System.out.println("done");
-        }
-        PCJ.barrier();
 
         int[][] C = new int[blockSize][blockSize];
 
-
+        PCJ.barrier();
         for(int l=0; l<sqrtP; l++) {
-            multiplyMatrix(A, B, C);
+            multiplyMatrix(A_local, B_local, C);
             if (rank == debugRank) {
-                printMatrix(A);
-                printMatrix(B);
+                printMatrix(A_local);
+                printMatrix(B_local);
                 printMatrix(C);
                 System.out.println("==============");
             }
             shiftLeft();
             shiftUp();
-            PCJ.barrier();
         }
 
         PCJ.barrier();
-        try {
-            MatrixFileIO.writePart(C, destination, blockSize, row, col);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-//        if (rank == 3) {
-//            System.out.println("Finished");
-//            printMatrix(C);
+//        try {
+//            MatrixFileIO.writePart(C, destination, blockSize, row, col);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
 //        }
+        if (rank == debugRank) {
+            System.out.println("Finished");
+            printMatrix(C);
+        }
     }
 
     private void shiftLeft() {
         int left = col == 0 ? (row*sqrtP) + sqrtP-1 : (row*sqrtP) + col - 1;
         int right = col == sqrtP - 1 ? (row*sqrtP) : (row*sqrtP) + col + 1;
+//        try {
+//            Thread.sleep(rank * 1000L);
+//        } catch (InterruptedException e) {
+//            System.err.println(e.getMessage());
+//        }
 //        if (rank == debugRank) {
+//            System.out.printf("Rank: " + rank);
 //            System.out.println("Left: " + left);
 //            System.out.println("Right: " + right);
-//            printMatrix(A);
+//            printMatrix(A_local);
 //        }
-//        if (rank == debugRank) {
-            System.out.println("barrier: " + rank);
-//        }
-        if (col != 0) {
-            PCJ.barrier(right);
-        }
-        System.out.println("Barrier reached: " + rank);
-        PCJ.put(A, left, Shared.A);
-//        if (rank == debugRank) {
-//            System.out.println("Rank: " + rank);
-//
-//            System.out.println("Left: " + left);
-//            System.out.println("Right: " + right);
-//            printMatrix(A);
-//        }
+
+//        System.out.println("barrier: " + rank + " right: " + right + " left: " + left);
+//        System.out.println("Barrier reached: " + rank);
+        PCJ.put(A_local, left, Shared.A);
         PCJ.waitFor(Shared.A);
+        A_local = A.clone();
     }
 
     private void shiftUp() {
-        int up = row == 0 ? sqrtP + col : ((row-1)*sqrtP) + col;
+        int up = row == 0 ? ((sqrtP-1)*sqrtP) + col : ((row-1)*sqrtP) + col;
         int down = row == sqrtP - 1 ? col : ((row+1)*sqrtP) + col;
-        PCJ.barrier(down);
+
         if (rank == debugRank) {
             System.out.println("Up: " + up);
             System.out.println("Down: " + down);
-            printMatrix(B);
+            printMatrix(B_local);
         }
-        PCJ.put(B, up, Shared.B);
+        PCJ.put(B_local, up, Shared.B);
+        if (rank == debugRank) System.out.println("Waiting for B: " + rank +" " + up + " " + down);
         PCJ.waitFor(Shared.B);
-        if (rank == debugRank) System.out.println("boing");
+        B_local = B.clone();
+        if (rank == debugRank) System.out.println("Got B");
+
     }
 
     private void printMatrix(int[][] matrix) {
