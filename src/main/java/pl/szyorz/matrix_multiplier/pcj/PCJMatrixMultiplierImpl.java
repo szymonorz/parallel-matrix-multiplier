@@ -116,14 +116,8 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
                 throw new IllegalArgumentException("Matrix size must be divisible by blockSize.");
             }
 
-            int numBlocks = N / blockSize;
-
             row = rank / sqrtP;
             col = rank % sqrtP;
-
-            if (row < 0 || row >= numBlocks || col < 0 || col >= numBlocks) {
-                throw new IndexOutOfBoundsException("Block index out of range.");
-            }
 
             int[][] subMatrix = new int[blockSize][blockSize];
             int startRow = row * blockSize;
