@@ -10,6 +10,7 @@
 \usepackage{titlesec}
 \usepackage{listings}
 \usepackage{graphicx}
+\usepackage[T1]{fontenc}
 
 \title{Mnożenie macierzy z wykorzystaniem biblioteki PCJ oraz wątków JVM}
 \author{Szymon Orzechowski}
@@ -103,28 +104,58 @@
     
     \section{Algorytm Cannona - PCJ}
 
-    Algorytm Cannona dzieli się na następujące kroki:
+    Niech $A = [a_{ij}]_{N\times N}$ oraz $B = [b_{ij}]_{N\times N}$. Tworzymy siatkę procesów $P$ o rozmiarze $\sqrt{p}\times\sqrt{p}$, gdzie $p$ - ilość procesów.
+    Macierze $A, B$ partycjonujemy na $p$ równych kwadratowych podmacieży o rozmiarach $(N/\sqrt{p})\times (N/\sqrt{p})$.
+    Kazdy proces $P_{ij}$ z przechowuję dedykowane mu podmacieże $A_{ij}, B_{ij}$.
 
+    Algorytm Cannona dzieli się na następujące kroki:
     \begin{enumerate}
-        \item Przesuń i-ty wiersz macierzy A o i pozycji w lewo.
-        \item Przesuń j-tą kolumnę macierzy B o j pozycji do góry.
-        \item Na każdym procesie $P_i,j$ oblicz $C_i,j$.
-        \item Przesuń każdy wiersz macierzy A o 1 w lewo.
-        \item Przesuń każdą kolumnę macierzy B o 1 do góry.
+        \item Przesuń i-tą podmacież $A_{ij}$ do procesu $(i, (j-i+\sqrt(p) mod \sqrt(p)))$
+        \item Przesuń j-tą podmacież $B_{ij}$ do precesu $((i-j+\sqrt(p)) mod \sqrt(p), j)$.
+        \item Na każdym procesie $P_{ij}$ oblicz $C_{ij}$.
+        \item Prześlij macierz $A_{ij}$ o 1 w lewo.
+        \item Prześlij macierz $B_{ij}$ o 1 do góry.
         \item Wykonuj krok od 3 do 5 $N$ razy.
     \end{enumerate}
 
-    W przypadku algorytmu Cannona każda komórka $C_i,j$ jest obliczana przez proces $P_i,j$ zgodnie ze wzorem.
+    W przypadku algorytmu Cannona każda podmacież $C_i,j$ jest obliczana przez proces $P_i,j$ zgodnie ze wzorem.
 
-    \[C_i,j = C_i,j + (A_i,j * B_i,j)\]
+    \[C_{ij} = C_{ij} + (A_{ij} * B_{ij})\]
 
-    W przypadku korzystania z biblioteki PCJ wszystkie przesunięcia wykonują się na procesie o \verb|rano = 0| i przetransformowane
-    dane są następnie rozprzestrzenianie do innych procesów z użyciem \verb|PCJ.broadcast|. Jest to możliwe, ze względu, iż
-    macierze \verb|A| i \verb|B| oraz ich ilość wierszy i kolumn \verb|N| są zdefiniowane jako \verb|Shared|.
+    W przypadku korzystania z bilbioteki PCJ każdy proces $P_{ij}$ zczytuje z plików żródłowych podmacierz o rozmiarach $\sqrt{p}\times\sqrt{p}$
+    i następnie podczas przesunięc przesyła oraz odbiera dane między sąsiadującymi procesami. Macierze są trzymane w zmiennych \verb|A_local| oraz \verb|B_local|
+    i przesyłane przez \verb|PCJ.put| do sąsiadujących na lewo i górą procesów. Wymiana między procesami jest możliwa dzięki zdefinowaniu zmiennych \verb|A| i \verb|B|
+    jako \verb|Shared|. W kolejnym kroku proces czeka, aż otrzyma dane poprzez \verb|PCJ.waitFor()|. Zanim zostaną przekopiowane dane ze zmiennych \verb|A,B| do
+    \verb|A_local,B_local| program czeka poprzez użycie \verb|PCJ.barrier| aż wszystkie procesy otrzymają swoje dane.
 
-    Ze względu na ograniczenia sprzętowe nie byłem w stanie odpowiednio i wiarygodnie przetestować wydajności implementacji.
-    W przypadku macierzy 10x10, 20x20 oraz 50x50 nie było widocznych różnić w czasie wykonywania. Kazda z tych prób wykonywała
-    się w czasie 1 sekundy.
+    Ograniczeniem tej implementacji jest to, że macierze źródłowe muszą się dzielić na równe $\sqrt{p}$ podmacierzy kwadratowych.
+
+    Podczas testowania wydajności wygenerowano macierz 2500x2500 (N=2500) i wykonano program na 1, 4, 25 i 100 procesach
+    w każdej iteracji wykonania programu. Program był uruchamiany na 25 procesach JVM.
+
+    \begin{table}[h]
+        \centering
+        \begin{tabular}{|c|c|}
+            \hline
+            \textbf{Ilość procesóœ} & \textbf{Czas wykonania (ms)} \\
+            \hline
+            1  & 37439 \\
+            4  & 9685 \\
+            25  & 5745 \\
+            100  & 8472 \\
+            \hline
+        \end{tabular}
+        \caption{Ilość procesów vs Czas wykonania}
+    \end{table}
+
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\textwidth]{pcj-plot.png}
+        \caption{Wykres czasu wykonania programu w zależności od ilości procesów}
+    \end{figure}
+
+    Zwiększony czas wykonania w przypadku 100 procesów wynika głównie z ograniczeń sprzętowych. Urządzenie na którym testowano osiągało limity zużycia CPU i pamięci
+    podczas wykonanywania progamu.
 
     \section{Obliczenie z definicji - wątki JVM}
 
@@ -152,17 +183,22 @@
             10 & 6745  \\
             \hline
         \end{tabular}
-        \caption{Execution Time vs Number of Threads}
-        \label{tab:execution_time}
+        \caption{Ilość wątków vs Czas wykonania}
     \end{table}
 
     \begin{figure}
         \centering
         \includegraphics[width=0.8\textwidth]{threads-plot.png}
         \caption{Wykres czasu wykonania programu w zależności od ilości wątków}
-        \label{fig:bar_chart}
     \end{figure}
 
     Można zauważyć, że wraz z wzrostem ilości wątków czas wykonania maleje lecz już po dojściu do 6 wątków różnice w czasie
     stają się znikome i w niektórych przypadkach czas jest dłuższy niż na mniejszej ilości wątków.
+
+    \clearpage
+
+    \section{Źródła}
+    \begin{enumerate}
+        \item https://www3.nd.edu/~zxu2/acms60212-40212-S12/Lec-07-3.pdf
+    \end{enumerate}
 \end{document}
