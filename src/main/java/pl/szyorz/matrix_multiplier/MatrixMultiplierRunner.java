@@ -48,7 +48,6 @@ public class MatrixMultiplierRunner {
 
             if (cmd.hasOption("p")) {
                 System.out.println("Parallel PCJ mode enabled");
-                int N = MatrixFileIO.readFromFile(sourceFiles[0]).N;
                 int P = Integer.parseInt(cmd.getOptionValue("P"));
 
                 ExecutionBuilder pcjBuilder = PCJ.executionBuilder(PCJMatrixMultiplierImpl.class)
