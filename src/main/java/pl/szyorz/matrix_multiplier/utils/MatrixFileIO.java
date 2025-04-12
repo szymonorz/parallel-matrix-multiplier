@@ -43,9 +43,18 @@ public class MatrixFileIO {
         Files.write(path, lines);
     }
 
-    public static void writePart(int value, String destination, int i, int j) throws IOException {
+    public static void writePart(int[][] value, String destination, int size, int i, int j) throws IOException {
         Path partPath = Path.of(destination + ".part-" + i + "-" + j);
-        Files.writeString(partPath, String.valueOf(value));
+        StringBuilder builder = new StringBuilder();
+        builder.append(size).append("\n");
+        for (int l=0; l<size; l++) {
+            for (int k=0; k<size; k++) {
+                builder.append(value[l][k]);
+                if(k<size-1) builder.append(" ");
+            }
+            builder.append("\n");
+        }
+        Files.writeString(partPath, builder.toString());
     }
 
     public static class Matrix {

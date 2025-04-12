@@ -36,6 +36,7 @@ public class MatrixMultiplierRunner {
 
         options.addOption("f", "nodes-file", true, "File consisting a list of nodes (Only parallel-pcj mode)");
         options.addOption("p", "parallel-pcj", false, "Use PCJ to compute");
+        options.addOption("P", "processes", true, "Number of processes to run on");
 
         options.addOption("t", "threads", false, "Use JVM threads");
         options.addOption("N", "thread-count", true, "Number of threads to run. Only applicable with --threads. Defaults to 1");
@@ -50,10 +51,12 @@ public class MatrixMultiplierRunner {
             if (cmd.hasOption("p")) {
                 System.out.println("Parallel PCJ mode enabled");
                 int N = MatrixFileIO.readFromFile(sourceFiles[0]).N;
+                int P = Integer.parseInt(cmd.getOptionValue("P"));
 
                 ExecutionBuilder pcjBuilder = PCJ.executionBuilder(PCJMatrixMultiplierImpl.class)
                         .addProperty("source1", sourceFiles[0])
                         .addProperty("source2", sourceFiles[1])
+                        .addProperty("P", cmd.getOptionValue("P"))
                         .addProperty("destination", destination);
 
                 if (cmd.hasOption("f")) {
@@ -62,9 +65,9 @@ public class MatrixMultiplierRunner {
                     pcjBuilder = pcjBuilder.addNodes(nodesFile);
 
                 }else {
-                    String[] nodes = new String[N * N];
+                    String[] nodes = new String[P];
 
-                    for (int i = 0; i < N * N; i++) {
+                    for (int i = 0; i < P; i++) {
                         int port = 8000 + (i % 20);
                         nodes[i] = "localhost:" + port;
                     }
