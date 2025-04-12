@@ -70,7 +70,6 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
             shiftUp();
         }
 
-        PCJ.barrier();
         try {
             MatrixFileIO.writePart(C, destination, blockSize, row, col);
         } catch (IOException e) {
