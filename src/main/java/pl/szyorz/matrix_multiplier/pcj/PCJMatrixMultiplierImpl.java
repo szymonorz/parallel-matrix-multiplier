@@ -12,7 +12,6 @@ import java.io.IOException;
 
 @RegisterStorage(PCJMatrixMultiplierImpl.Shared.class)
 public class PCJMatrixMultiplierImpl implements StartPoint {
-
     private int N;
 
     @Storage
@@ -23,9 +22,7 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
     private int[][] A, B, A_local, B_local;
     private int rank, row, col;
     private int p, sqrtP, blockSize;
-
     private final int debugRank = 2;
-
     private int left, up;
 
     @Override
@@ -124,11 +121,9 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
             row = rank / sqrtP;
             col = rank % sqrtP;
 
-
             if (row < 0 || row >= numBlocks || col < 0 || col >= numBlocks) {
                 throw new IndexOutOfBoundsException("Block index out of range.");
             }
-
 
             int[][] subMatrix = new int[blockSize][blockSize];
             int startRow = row * blockSize;
