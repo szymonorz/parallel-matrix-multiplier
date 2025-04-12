@@ -4,13 +4,11 @@ import org.pcj.PCJ;
 import org.pcj.RegisterStorage;
 import org.pcj.StartPoint;
 import org.pcj.Storage;
-import pl.szyorz.dummy.DummyData;
 import pl.szyorz.matrix_multiplier.utils.MatrixFileIO;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.Collections;
 
 @RegisterStorage(PCJMatrixMultiplierImpl.Shared.class)
 public class PCJMatrixMultiplierImpl implements StartPoint {
@@ -28,8 +26,12 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
 
     private final int debugRank = 2;
 
+    private int left, up;
+
     @Override
     public void main() {
+        long start = System.currentTimeMillis();
+
         rank = PCJ.myId();
         String destination = PCJ.getProperty("destination");
 
@@ -43,76 +45,59 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
             throw new RuntimeException(e);
         }
 
-//        if (rank == debugRank) {
-//            System.out.println("Row: " + row +" col: " + col);
-//        }
-        for(int i=0; i<row; i++) shiftLeft();
-        for(int j=0; j<col; j++) shiftUp();
+        up = row == 0 ? ((sqrtP-1)*sqrtP) + col : ((row-1)*sqrtP) + col;
+        left = col == 0 ? (row*sqrtP) + sqrtP-1 : (row*sqrtP) + col - 1;
+
+        // Initial alignment
+        int destA = (row*sqrtP) + ((col - row + sqrtP) % sqrtP);
+        int destB = (((row - col + sqrtP) % sqrtP) * sqrtP) + col;
+
+        PCJ.put(A_local, destA, Shared.A);
+        PCJ.put(B_local, destB, Shared.B);
+        PCJ.waitFor(Shared.A);
+        PCJ.waitFor(Shared.B);
+        PCJ.barrier();
+        if (rank == 0) {
+            System.out.println("Finished initial alignment");
+        }
+
+        A_local = A.clone();
+        B_local = B.clone();
 
         int[][] C = new int[blockSize][blockSize];
 
         PCJ.barrier();
         for(int l=0; l<sqrtP; l++) {
             multiplyMatrix(A_local, B_local, C);
-            if (rank == debugRank) {
-                printMatrix(A_local);
-                printMatrix(B_local);
-                printMatrix(C);
-                System.out.println("==============");
-            }
             shiftLeft();
             shiftUp();
         }
 
         PCJ.barrier();
-//        try {
-//            MatrixFileIO.writePart(C, destination, blockSize, row, col);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-        if (rank == debugRank) {
-            System.out.println("Finished");
-            printMatrix(C);
+        try {
+            MatrixFileIO.writePart(C, destination, blockSize, row, col);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        long finished = System.currentTimeMillis();
+
+        if (PCJ.myId() == 0) {
+            System.out.println("Elapsed time (ms): " + (finished - start));
         }
     }
 
     private void shiftLeft() {
-        int left = col == 0 ? (row*sqrtP) + sqrtP-1 : (row*sqrtP) + col - 1;
-        int right = col == sqrtP - 1 ? (row*sqrtP) : (row*sqrtP) + col + 1;
-//        try {
-//            Thread.sleep(rank * 1000L);
-//        } catch (InterruptedException e) {
-//            System.err.println(e.getMessage());
-//        }
-//        if (rank == debugRank) {
-//            System.out.printf("Rank: " + rank);
-//            System.out.println("Left: " + left);
-//            System.out.println("Right: " + right);
-//            printMatrix(A_local);
-//        }
-
-//        System.out.println("barrier: " + rank + " right: " + right + " left: " + left);
-//        System.out.println("Barrier reached: " + rank);
         PCJ.put(A_local, left, Shared.A);
         PCJ.waitFor(Shared.A);
+        PCJ.barrier();
         A_local = A.clone();
     }
 
     private void shiftUp() {
-        int up = row == 0 ? ((sqrtP-1)*sqrtP) + col : ((row-1)*sqrtP) + col;
-        int down = row == sqrtP - 1 ? col : ((row+1)*sqrtP) + col;
-
-        if (rank == debugRank) {
-            System.out.println("Up: " + up);
-            System.out.println("Down: " + down);
-            printMatrix(B_local);
-        }
         PCJ.put(B_local, up, Shared.B);
-        if (rank == debugRank) System.out.println("Waiting for B: " + rank +" " + up + " " + down);
         PCJ.waitFor(Shared.B);
+        PCJ.barrier();
         B_local = B.clone();
-        if (rank == debugRank) System.out.println("Got B");
-
     }
 
     private void printMatrix(int[][] matrix) {
@@ -128,11 +113,8 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             N = Integer.parseInt(reader.readLine().trim());
 
-//            System.out.println("P: " + p); 4
-//            System.out.println("N: " + N); 4
             blockSize = (int)(N / sqrtP);
 
-//            System.out.println("BlockSize: " + blockSize); 2
             if (N % blockSize != 0) {
                 throw new IllegalArgumentException("Matrix size must be divisible by blockSize.");
             }
@@ -142,11 +124,6 @@ public class PCJMatrixMultiplierImpl implements StartPoint {
             row = rank / sqrtP;
             col = rank % sqrtP;
 
-//            System.out.println("numBlocks: " + numBlocks); 4
-
-//            if (rank == 2) {
-//                System.out.println("Row: " + row + " col: " + col);
-//            }
 
             if (row < 0 || row >= numBlocks || col < 0 || col >= numBlocks) {
                 throw new IndexOutOfBoundsException("Block index out of range.");
